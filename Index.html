@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Terminal</title>
+    <style>
+        body {
+            background-color: #0c0c0c;
+            color: #00ff41; /* Classic Matrix Green */
+            font-family: 'Courier New', Courier, monospace;
+            padding: 20px;
+            line-height: 1.5;
+            margin: 0;
+            overflow: hidden;
+        }
+        #terminal {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .prompt {
+            color: #ff00ff; /* User color */
+        }
+        .location {
+            color: #0087ff; /* Directory color */
+        }
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background-color: #00ff41;
+            vertical-align: middle;
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .output {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal">
+        <div class="output">
+            Welcome to Linux 5.15.0-generic (x86_64)<br>
+            * Documentation:  https://ubuntu.com<br>
+            * Management:     https://canonical.com<br>
+            <br>
+            Last login: Wed May 10 18:10:00 2026 from 192.168.1.1
+        </div>
+        
+        <div class="line">
+            <span class="prompt">user@cloud</span>:<span class="location">~</span>$ ls -la<br>
+            drwxr-xr-x  2 user user 4096 May 10 index.html<br>
+            -rw-r--r--  1 user user  150 May 10 style.css
+        </div>
+
+        <div class="line">
+            <span class="prompt">user@cloud</span>:<span class="location">~</span>$ <span class="cursor"></span>
+        </div>
+    </div>
+</body>
+</html>
