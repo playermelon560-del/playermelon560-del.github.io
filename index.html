@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPV OS - Cloud Virtual Terminal</title>
+    <style>
+        :root {
+            --primary: #00ff41;
+            --accent: #ff00ff;
+            --bg: #0c0c0c;
+            --surface: #1a1a1a;
+            --sky: #00aaff;
+            --danger: #ff4444;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--primary);
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* --- OS INTERFACE --- */
+        #taskbar {
+            background: #000;
+            border-bottom: 1px solid var(--primary);
+            padding: 8px 15px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .os-btn {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 4px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            transition: 0.2s;
+        }
+
+        .os-btn:hover {
+            background: var(--primary);
+            color: #000;
+        }
+
+        #userInfo {
+            font-size: 12px;
+            color: var(--sky);
+            margin-left: auto;
+        }
+
+        /* --- BROWSER WINDOW --- */
+        #browser-window {
+            display: none;
+            position: absolute;
+            top: 50px;
+            left: 5%;
+            width: 90%;
+            height: 85vh;
+            background: #fff;
+            border: 2px solid var(--sky);
+            z-index: 500;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0, 170, 255, 0.3);
+        }
+
+        .browser-bar {
+            background: #222;
+            padding: 8px;
+            display: flex;
+            gap: 10px;
+        }
+
+        #url-input {
+            flex: 1;
+            background: #333;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 4px 8px;
+        }
+
+        #web-frame {
+            flex: 1;
+            border: none;
+            background: #fff;
+        }
+
+        /* --- TERMINAL --- */
+        #terminal-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .output { margin-bottom: 10px; white-space: pre-wrap; line-height: 1.4; }
+        .prompt { color: var(--accent); }
+        .location { color: var(--sky); }
+
+        .input-line { display: flex; align-items: center; margin-top: 5px; }
+        #cmd {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--primary);
+            font-size: 16px;
+            font-family: inherit;
+        }
+
+        /* --- LINKS --- */
+        .footer-links { padding: 10px 20px; font-size: 12px; }
+        .footer-links a { color: var(--sky); text-decoration: none; margin-right: 15px; }
+    </style>
+</head>
+<body>
+
+<div id="taskbar">
+    <b style="color: var(--accent);">CPV OS</b>
+    <button class="os-btn" onclick="googleLogin()">Login</button>
+    <button class="os-btn" onclick="toggleBrowser()">Browser</button>
+    <button class="os-btn" onclick="executeCommand('clear')">Clear</button>
+    <div id="userInfo">System Status: Guest</div>
+</div>
+
+<div id="browser-window">
+    <div class="browser-bar">
+        <button class="os-btn" onclick="toggleBrowser()" style="border-color: var(--danger); color: var(--danger);">Close</button>
+        <input type="text" id="url-input" placeholder="Enter URL (e.g. bing.com)">
+        <button class="os-btn" onclick="navigate()">Go</button>
+    </div>
+    <iframe id="web-frame" src="about:blank"></iframe>
+</div>
+
+<div id="terminal-container" id="scroll-area">
+    <div id="terminal-content">
+        <div class="output">
+[CPV OS Initialized]
+Cloud Database: Ready
+Type 'help' to see available commands.
+        </div>
+        <div class="input-line">
+            <span class="prompt">user@cpv</span>:<span class="location">~/</span>$&nbsp;
+            <input id="cmd" autocomplete="off" spellcheck="false" autofocus>
+        </div>
+    </div>
+</div>
+
+<div class="footer-links">
+    <a href="#">Terms & Conditions</a>
+    <a href="#">Privacy Policy</a>
+</div>
+
+<script type="module">
+    // --- FIREBASE SETUP ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, query, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT.appspot.com",
+        messagingSenderId: "XXXX",
+        appId: "XXXX"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    let userSession = null;
+
+    // --- DOM ELEMENTS ---
+    const input = document.getElementById("cmd");
+    const terminal = document.getElementById("terminal-content");
+    const browser = document.getElementById("browser-window");
+    const webFrame = document.getElementById("web-frame");
+    const urlInput = document.getElementById("url-input");
+
+    // --- OS CORE FUNCTIONS ---
+    window.addOutput = (text) => {
+        const div = document.createElement("div");
+        div.className = "output";
+        div.innerHTML = text;
+        terminal.insertBefore(div, terminal.lastElementChild);
+        document.getElementById("terminal-container").scrollTop = document.getElementById("terminal-container").scrollHeight;
+    };
+
+    window.toggleBrowser = () => {
+        browser.style.display = (browser.style.display === "flex") ? "none" : "flex";
+        if(browser.style.display === "flex") addOutput("OS: Initializing Virtual Browser...");
+    };
+
+    window.navigate = () => {
+        let url = urlInput.value;
+        if (!url.startsWith('http')) url = 'https://' + url;
+        webFrame.src = url;
+    };
+
+    window.googleLogin = async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+            const result = await signInWithPopup(auth, provider);
+            userSession = result.user;
+            document.getElementById("userInfo").innerHTML = `User: ${userSession.displayName}`;
+            
+            // Log login to DB
+            await setDoc(doc(db, "users", userSession.uid), {
+                name: userSession.displayName,
+                email: userSession.email,
+                lastSeen: new Date()
+            }, { merge: true });
+
+            addOutput("Authentication successful. Cloud storage linked.");
+        } catch (err) {
+            addOutput("<span style='color:red;'>Login Failed:</span> " + err.message);
+        }
+    };
+
+    // --- DATABASE OPERATIONS ---
+    async function cloudSave(fileName, content) {
+        if(!userSession) return addOutput("Access Denied: Login required to save files.");
+        try {
+            await setDoc(doc(db, "users", userSession.uid, "files", fileName), {
+                content: content,
+                updated: new Date()
+            });
+            addOutput(`[Cloud] File '${fileName}' saved successfully.`);
+        } catch (e) { addOutput("DB Error: " + e.message); }
+    }
+
+    async function cloudList() {
+        if(!userSession) return addOutput("Access Denied: Login required.");
+        const q = query(collection(db, "users", userSession.uid, "files"));
+        const snapshot = await getDocs(q);
+        if(snapshot.empty) return addOutput("Directory is empty.");
+        
+        let output = "<b>Cloud Directory:</b><br>";
+        snapshot.forEach(doc => output += `> ${doc.id}<br>`);
+        addOutput(output);
+    }
+
+    // --- COMMAND HANDLER ---
+    window.executeCommand = async (rawInput) => {
+        const parts = rawInput.trim().split(" ");
+        const cmd = parts[0].toLowerCase();
+        const args = parts.slice(1);
+
+        addOutput(`<span class="prompt">user@cpv</span>:<span class="location">~/</span>$ ${rawInput}`);
+
+        switch(cmd) {
+            case "help":
+                addOutput(`
+                    <b>CPV OS HELP MENU</b><br>
+                    - help: Show this menu<br>
+                    - browser: Launch web window<br>
+                    - save [file] [text]: Write to Cloud DB<br>
+                    - ls: List Cloud files<br>
+                    - whoami: Current session status<br>
+                    - date: System timestamp<br>
+                    - clear: Wipe terminal screen
+                `);
+                break;
+            case "browser": toggleBrowser(); break;
+            case "date": addOutput(new Date().toString()); break;
+            case "clear": location.reload(); break;
+            case "ls": await cloudList(); break;
+            case "save": 
+                if(args.length < 2) addOutput("Usage: save [filename] [content]");
+                else await cloudSave(args[0], args.slice(1).join(" "));
+                break;
+            case "whoami":
+                addOutput(userSession ? `User: ${userSession.displayName} (${userSession.email})` : "Logged in as: Guest");
+                break;
+            case "": break;
+            default: addOutput(`Error: Command '${cmd}' not recognized.`);
+        }
+    };
+
+    input.addEventListener("keydown", (e) => {
+        if(e.key === "Enter") {
+            executeCommand(input.value);
+            input.value = "";
+        }
+    });
+
+    document.addEventListener("click", () => {
+        if(browser.style.display !== "flex") input.focus();
+    });
+</script>
+</body>
+</html>
